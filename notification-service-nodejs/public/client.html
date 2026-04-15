@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notification Dispatcher - Real-time Client</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 600px;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            font-weight: 600;
+        }
+
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .notifications-box {
+            margin-top: 40px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .notification-item {
+            background: white;
+            padding: 15px;
+            border-left: 4px solid #667eea;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .notification-item .title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .notification-item .body {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .notification-item .meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #999;
+        }
+
+        .channel-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #667eea;
+            color: white;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #999;
+            padding: 40px 20px;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔔 Notification Dispatcher</h1>
+        
+        <div class="status disconnected" id="status">
+            Status: <span id="statusText">Disconnected</span>
+        </div>
+
+        <div class="input-group">
+            <label for="userId">Your User ID</label>
+            <input type="text" id="userId" placeholder="e.g., user-123" value="user-demo">
+        </div>
+
+        <button id="connectBtn" onclick="connectUser()">Connect & Subscribe</button>
+
+        <div class="notifications-box">
+            <div id="notificationsList" class="empty-state">
+                <p>📭 No notifications yet. Stay connected!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        const notifications = [];
+
+        function connectUser() {
+            const userId = document.getElementById('userId').value.trim();
+
+            if (!userId) {
+                alert('Please enter a User ID');
+                return;
+            }
+
+            if (socket) {
+                socket.disconnect();
+            }
+
+            socket = io();
+
+            socket.on('connect', () => {
+                console.log('✅ Connected to server');
+                updateStatus(true);
+                socket.emit('subscribe', { userId });
+            });
+
+            socket.on('subscribed', (data) => {
+                console.log('✅ Subscribed:', data);
+                showNotification({
+                    title: 'Connected',
+                    body: `You are now subscribed to notifications as ${data.userId}`,
+                    channel: 'system',
+                    timestamp: new Date().toISOString()
+                });
+            });
+
+            socket.on('notification', (data) => {
+                console.log('📨 Notification received:', data);
+                showNotification(data);
+            });
+
+            socket.on('disconnect', () => {
+                console.log('❌ Disconnected from server');
+                updateStatus(false);
+            });
+
+            socket.on('error', (error) => {
+                console.error('❌ Socket error:', error);
+            });
+        }
+
+        function updateStatus(connected) {
+            const statusDiv = document.getElementById('status');
+            const statusText = document.getElementById('statusText');
+            
+            if (connected) {
+                statusDiv.className = 'status connected';
+                statusText.textContent = 'Connected 🟢';
+            } else {
+                statusDiv.className = 'status disconnected';
+                statusText.textContent = 'Disconnected 🔴';
+            }
+        }
+
+        function showNotification(data) {
+            notifications.unshift(data);
+            
+            const list = document.getElementById('notificationsList');
+            list.innerHTML = '';
+
+            if (notifications.length === 0) {
+                list.innerHTML = '<div class="empty-state"><p>📭 No notifications yet</p></div>';
+                return;
+            }
+
+            notifications.forEach(notif => {
+                const item = document.createElement('div');
+                item.className = 'notification-item';
+                item.innerHTML = `
+                    <div class="title">${notif.subject || 'Notification'}</div>
+                    <div class="body">${notif.body}</div>
+                    <div class="meta">
+                        <span class="channel-badge">${notif.channel.toUpperCase()}</span>
+                        <span>${new Date(notif.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        // Auto-connect on page load with demo user
+        window.addEventListener('load', () => {
+            connectUser();
+        });
+    </script>
+</body>
+</html>
