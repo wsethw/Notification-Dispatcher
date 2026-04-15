@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1776289979636" clover="3.2.0">
+  <project timestamp="1776289979636" name="All files">
+    <metrics statements="34" coveredstatements="12" conditionals="6" coveredconditionals="4" methods="9" coveredmethods="1" elements="49" coveredelements="17" complexity="0" loc="34" ncloc="34" packages="1" files="2" classes="2"/>
+    <file name="redisClient.js" path="C:\Users\codwj\OneDrive\Documentos\Desktop\notification-service-nodejs\src\redisClient.js">
+      <metrics statements="9" coveredstatements="5" conditionals="4" coveredconditionals="4" methods="3" coveredmethods="0"/>
+      <line num="1" count="1" type="stmt"/>
+      <line num="3" count="1" type="stmt"/>
+      <line num="7" count="0" type="stmt"/>
+      <line num="8" count="0" type="stmt"/>
+      <line num="12" count="1" type="stmt"/>
+      <line num="13" count="0" type="stmt"/>
+      <line num="16" count="1" type="stmt"/>
+      <line num="17" count="0" type="stmt"/>
+      <line num="20" count="1" type="stmt"/>
+    </file>
+    <file name="socketHandler.js" path="C:\Users\codwj\OneDrive\Documentos\Desktop\notification-service-nodejs\src\socketHandler.js">
+      <metrics statements="25" coveredstatements="7" conditionals="2" coveredconditionals="0" methods="6" coveredmethods="1"/>
+      <line num="1" count="1" type="stmt"/>
+      <line num="3" count="1" type="stmt"/>
+      <line num="5" count="1" type="stmt"/>
+      <line num="7" count="1" type="stmt"/>
+      <line num="8" count="0" type="cond" truecount="0" falsecount="2"/>
+      <line num="9" count="0" type="stmt"/>
+      <line num="11" count="0" type="stmt"/>
+      <line num="15" count="1" type="stmt"/>
+      <line num="16" count="0" type="stmt"/>
+      <line num="17" count="0" type="stmt"/>
+      <line num="18" count="0" type="stmt"/>
+      <line num="20" count="0" type="stmt"/>
+      <line num="23" count="0" type="stmt"/>
+      <line num="31" count="0" type="stmt"/>
+      <line num="33" count="0" type="stmt"/>
+      <line num="37" count="1" type="stmt"/>
+      <line num="38" count="0" type="stmt"/>
+      <line num="40" count="0" type="stmt"/>
+      <line num="41" count="0" type="stmt"/>
+      <line num="42" count="0" type="stmt"/>
+      <line num="43" count="0" type="stmt"/>
+      <line num="44" count="0" type="stmt"/>
+      <line num="47" count="0" type="stmt"/>
+      <line num="48" count="0" type="stmt"/>
+      <line num="53" count="1" type="stmt"/>
+    </file>
+  </project>
+</coverage>

@@ -1,0 +1,5 @@
+{
+  "devDependencies": {
+    "jest-mock-console": "^2.0.0"
+  }
+}
