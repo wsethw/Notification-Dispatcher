@@ -1,14 +1,14 @@
 module.exports = {
   testEnvironment: 'node',
-  forceExit: true,
+  clearMocks: true,
   detectOpenHandles: true,
-  moduleNameMapper: {
-    // Mapeia TODAS as formas de importar o redisClient para o mock
-    '^./redisClient$': '<rootDir>/src/__mocks__/redisClient.js',
-    '^../src/redisClient$': '<rootDir>/src/__mocks__/redisClient.js',
-    '^../../src/redisClient$': '<rootDir>/src/__mocks__/redisClient.js',
-    '^src/redisClient$': '<rootDir>/src/__mocks__/redisClient.js'
-  },
+  setupFilesAfterEnv: ['<rootDir>/test/setup.js'],
+  testMatch: [
+    '<rootDir>/test/unit/index.test.js',
+    '<rootDir>/test/unit/redisClient.test.js',
+    '<rootDir>/test/unit/socketHandler.test.js',
+    '<rootDir>/test/integration/push-flow.integration.test.js'
+  ],
   collectCoverageFrom: [
     'src/**/*.js',
     '!src/__mocks__/**'

@@ -4,10 +4,6 @@ VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "notification-worker-dotnet", "notification-worker-dotnet\notification-worker-dotnet.csproj", "{C42797F6-D5FF-3E72-A0CA-42AA9D1C999C}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "notification-dispatcher", "notification-dispatcher", "{83C6CEE3-1548-423F-9C51-08596CC0951B}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "notification-worker-dotnet", "notification-dispatcher\notification-worker-dotnet\notification-worker-dotnet.csproj", "{62A2E2D4-BDCA-D632-2B92-5B077088E9DB}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,16 +14,9 @@ Global
 		{C42797F6-D5FF-3E72-A0CA-42AA9D1C999C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C42797F6-D5FF-3E72-A0CA-42AA9D1C999C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C42797F6-D5FF-3E72-A0CA-42AA9D1C999C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{62A2E2D4-BDCA-D632-2B92-5B077088E9DB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{62A2E2D4-BDCA-D632-2B92-5B077088E9DB}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{62A2E2D4-BDCA-D632-2B92-5B077088E9DB}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{62A2E2D4-BDCA-D632-2B92-5B077088E9DB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(NestedProjects) = preSolution
-		{62A2E2D4-BDCA-D632-2B92-5B077088E9DB} = {83C6CEE3-1548-423F-9C51-08596CC0951B}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {E04F03E0-A146-4B84-AB47-905096AD2376}

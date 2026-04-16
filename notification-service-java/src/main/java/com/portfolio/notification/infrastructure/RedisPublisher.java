@@ -10,7 +10,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class RedisPublisher {
     private final RedisTemplate<String, String> redisTemplate;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     public void publishNotification(String channel, Map<String, Object> payload) {
         try {

@@ -3,22 +3,22 @@ spring:
     name: notification-service
 
   datasource:
-    url: jdbc:postgresql://postgres:5432/notification_db
-    username: postgres
-    password: postgres
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/notification_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
   redis:
-    host: redis
-    port: 6379
+    host: ${SPRING_REDIS_HOST:redis}
+    port: ${SPRING_REDIS_PORT:6379}
     database: 0
     timeout: 2000ms
     jedis:
@@ -28,9 +28,14 @@ spring:
         min-idle: 0
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
   servlet:
     context-path: /
+
+notification:
+  rate-limit:
+    max-requests: ${NOTIFICATION_RATE_LIMIT_MAX_REQUESTS:10}
+    window-seconds: ${NOTIFICATION_RATE_LIMIT_WINDOW_SECONDS:60}
 
 logging:
   level:

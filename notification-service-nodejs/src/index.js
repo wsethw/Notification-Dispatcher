@@ -4,32 +4,75 @@ const socketIo = require('socket.io');
 const path = require('path');
 const { setupSocketHandlers } = require('./socketHandler');
 
-const app = express();
-const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
+function buildApp() {
+  const app = express();
+
+  app.use(express.json());
+  app.use(express.static(path.join(__dirname, '../public')));
+
+  app.get('/api/v1/health', (req, res) => {
+    res.json({
+      status: 'UP',
+      service: 'notification-service-nodejs'
+    });
+  });
+
+  app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/client.html'));
+  });
+
+  return app;
+}
+
+function createServer(options = {}) {
+  const app = buildApp();
+  const server = http.createServer(app);
+  const io = socketIo(server, {
+    cors: {
+      origin: options.corsOrigin || '*',
+      methods: ['GET', 'POST']
+    }
+  });
+
+  const subscriber = setupSocketHandlers(io, options.socketOptions);
+
+  return { app, server, io, subscriber };
+}
+
+async function shutdown(server, subscriber) {
+  await new Promise((resolve) => server.close(resolve));
+
+  if (subscriber && typeof subscriber.unsubscribe === 'function') {
+    await subscriber.unsubscribe();
   }
-});
 
-app.use(express.json());
-app.use(express.static(path.join(__dirname, '../public')));
+  if (subscriber && typeof subscriber.quit === 'function') {
+    await subscriber.quit();
+  }
+}
 
-// Setup Socket.IO handlers and Redis subscription
-setupSocketHandlers(io);
+if (require.main === module) {
+  const port = Number(process.env.PORT || 3000);
+  const { server, subscriber } = createServer();
 
-// Health endpoint
-app.get('/api/v1/health', (req, res) => {
-  res.json({ status: 'UP' });
-});
+  server.listen(port, () => {
+    console.log(`Node.js Notification Service listening on port ${port}`);
+  });
 
-// Serve client
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/client.html'));
-});
+  const handleSignal = async () => {
+    try {
+      await shutdown(server, subscriber);
+    } finally {
+      process.exit(0);
+    }
+  };
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🚀 Node.js Notification Service listening on port ${PORT}`);
-});
+  process.on('SIGINT', handleSignal);
+  process.on('SIGTERM', handleSignal);
+}
+
+module.exports = {
+  buildApp,
+  createServer,
+  shutdown
+};

@@ -1,53 +1,86 @@
-const redis = require('./redisClient');
+const redisClient = require('./redisClient');
 
-const setupSocketHandlers = (io) => {
-  // Subscribe to push channel
-  const subscriber = redis.duplicate();
+const PUSH_CHANNEL = 'channel:push:request';
 
-  subscriber.subscribe('channel:push:request', (err) => {
-    if (err) {
-      console.error('Failed to subscribe to channel:push:request', err);
-    } else {
-      console.log('✅ Subscribed to channel:push:request');
+function isValidUserId(userId) {
+  return typeof userId === 'string' && userId.trim().length > 0;
+}
+
+function normalizeNotification(message) {
+  const parsed = typeof message === 'string' ? JSON.parse(message) : message;
+
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Notification payload must be an object');
+  }
+
+  if (!isValidUserId(parsed.userId)) {
+    throw new Error('Notification payload must include a valid userId');
+  }
+
+  return {
+    notificationId: parsed.notificationId || null,
+    userId: parsed.userId.trim(),
+    subject: parsed.subject || 'Notification',
+    body: parsed.body || '',
+    channel: parsed.channel || 'push',
+    timestamp: parsed.timestamp || new Date().toISOString()
+  };
+}
+
+function setupSocketHandlers(io, options = {}) {
+  const subscriber = options.subscriber || redisClient.duplicate();
+  const pushChannel = options.pushChannel || PUSH_CHANNEL;
+
+  subscriber.subscribe(pushChannel, (error) => {
+    if (error) {
+      console.error(`Failed to subscribe to ${pushChannel}`, error);
+      return;
     }
+
+    console.log(`Subscribed to ${pushChannel}`);
   });
 
   subscriber.on('message', (channel, message) => {
     try {
-      const notification = JSON.parse(message);
-      const userId = notification.userId;
-
-      console.log(`📨 Received push notification for userId: ${userId}`);
-
-      // Emit to the specific user via Socket.IO
-      io.to(`user:${userId}`).emit('notification', {
-        notificationId: notification.notificationId,
-        subject: notification.subject,
-        body: notification.body,
-        channel: notification.channel,
-        timestamp: new Date().toISOString()
-      });
-
-      console.log(`✉️  Sent notification to user:${userId}`);
+      const notification = normalizeNotification(message);
+      io.to(`user:${notification.userId}`).emit('notification', notification);
+      console.log(`Delivered notification ${notification.notificationId || 'without-id'} to user:${notification.userId}`);
     } catch (error) {
-      console.error('Error processing message:', error);
+      console.error(`Error processing message from ${channel}:`, error);
     }
   });
 
   io.on('connection', (socket) => {
-    console.log(`👤 Client connected: ${socket.id}`);
+    console.log(`Client connected: ${socket.id}`);
 
-    socket.on('subscribe', (data) => {
-      const userId = data.userId;
+    socket.on('subscribe', (payload = {}) => {
+      const userId = typeof payload.userId === 'string' ? payload.userId.trim() : '';
+
+      if (!isValidUserId(userId)) {
+        socket.emit('subscription_error', {
+          error: 'userId is required to subscribe to notifications'
+        });
+        return;
+      }
+
       socket.join(`user:${userId}`);
-      console.log(`👤 User ${userId} subscribed via Socket.IO (socket: ${socket.id})`);
-      socket.emit('subscribed', { userId, message: 'Successfully subscribed to notifications' });
+      socket.emit('subscribed', {
+        userId,
+        message: 'Successfully subscribed to notifications'
+      });
     });
 
     socket.on('disconnect', () => {
-      console.log(`👤 Client disconnected: ${socket.id}`);
+      console.log(`Client disconnected: ${socket.id}`);
     });
   });
-};
 
-module.exports = { setupSocketHandlers };
+  return subscriber;
+}
+
+module.exports = {
+  PUSH_CHANNEL,
+  isValidUserId,
+  normalizeNotification,
+  setupSocketHandlers
+};

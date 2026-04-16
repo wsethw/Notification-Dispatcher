@@ -1,25 +1,37 @@
 using StackExchange.Redis;
+using notification_worker_dotnet.Models;
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 
 namespace notification_worker_dotnet;
 
 public class RedisSubscriber
 {
+    private const string EmailChannel = "channel:email:request";
+    private const string SmsChannel = "channel:sms:request";
+    private const string DeliveryLogChannel = "channel:delivery:log";
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private readonly ILogger<RedisSubscriber> _logger;
+    private readonly RedisOptions _options;
     private IConnectionMultiplexer _redis = null!;
     private ISubscriber _subscriber = null!;
 
-    public RedisSubscriber(ILogger<RedisSubscriber> logger)
+    public RedisSubscriber(ILogger<RedisSubscriber> logger, IOptions<RedisOptions> options)
     {
         _logger = logger;
+        _options = options.Value;
     }
 
-    public async Task StartSubscribing(CancellationToken cancellationToken)
+    public async Task StartSubscribingAsync(CancellationToken cancellationToken)
     {
         try
         {
-            var redisHost = Environment.GetEnvironmentVariable("REDIS_HOST") ?? "redis";
-            var redisPort = Environment.GetEnvironmentVariable("REDIS_PORT") ?? "6379";
+            var redisHost = Environment.GetEnvironmentVariable("REDIS_HOST") ?? _options.Host;
+            var redisPort = Environment.GetEnvironmentVariable("REDIS_PORT") ?? _options.Port.ToString();
 
             var options = ConfigurationOptions.Parse($"{redisHost}:{redisPort}");
             options.AbortOnConnectFail = false;
@@ -27,104 +39,134 @@ public class RedisSubscriber
             _redis = await ConnectionMultiplexer.ConnectAsync(options);
             _subscriber = _redis.GetSubscriber();
 
-            _logger.LogInformation($"✅ Connected to Redis at {redisHost}:{redisPort}");
+            _logger.LogInformation("Connected to Redis at {RedisHost}:{RedisPort}", redisHost, redisPort);
 
-            // Subscribe to email and SMS channels
-            await _subscriber.SubscribeAsync("channel:email:request", ProcessNotification);
-            await _subscriber.SubscribeAsync("channel:sms:request", ProcessNotification);
+            await _subscriber.SubscribeAsync(RedisChannel.Literal(EmailChannel), (_, message) => QueueProcessing(message));
+            await _subscriber.SubscribeAsync(RedisChannel.Literal(SmsChannel), (_, message) => QueueProcessing(message));
 
-            _logger.LogInformation("✅ Subscribed to channel:email:request and channel:sms:request");
+            _logger.LogInformation("Subscribed to {EmailChannel} and {SmsChannel}", EmailChannel, SmsChannel);
 
-            // Keep the subscription alive
-            while (!cancellationToken.IsCancellationRequested)
+            try
             {
-                await Task.Delay(1000, cancellationToken);
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Cancellation requested, unsubscribing from Redis channels");
             }
 
             await _subscriber.UnsubscribeAllAsync();
+            await _redis.CloseAsync();
             _redis.Dispose();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Error in Redis subscription");
+            _logger.LogError(ex, "Error in Redis subscription");
             throw;
         }
     }
 
-    private async void ProcessNotification(RedisChannel channel, RedisValue message)
+    private void QueueProcessing(RedisValue message)
+    {
+        _ = ProcessNotificationAsync(message);
+    }
+
+    private async Task ProcessNotificationAsync(RedisValue message)
     {
         try
         {
-            var json = message.ToString();
-            using (JsonDocument doc = JsonDocument.Parse(json))
+            if (!TryParseNotification(message.ToString(), out var notification))
             {
-                var root = doc.RootElement;
-                var notificationId = root.GetProperty("notificationId").GetString();
-                var subject = root.GetProperty("subject").GetString();
-                var body = root.GetProperty("body").GetString();
-                var channelType = root.GetProperty("channel").GetString();
-
-                _logger.LogInformation($"📨 Received {channelType.ToUpper()} notification: {notificationId}");
-                _logger.LogInformation($"   Subject: {subject}");
-                _logger.LogInformation($"   Body: {body}");
-
-                // Simulate CPU-bound template rendering
-                await SimulateTemplateRendering(notificationId, subject, body, channelType);
-
-                // Publish delivery log
-                await PublishDeliveryLog(notificationId, subject, body, channelType);
+                _logger.LogWarning("Ignoring invalid notification payload: {Payload}", message.ToString());
+                return;
             }
+
+            _logger.LogInformation(
+                "Received {Channel} notification {NotificationId} for user {UserId}",
+                notification.Channel,
+                notification.NotificationId,
+                notification.UserId
+            );
+
+            var rendered = RenderTemplate(notification);
+            await PublishDeliveryLogAsync(notification, rendered.subject, rendered.body);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Error processing notification");
+            _logger.LogError(ex, "Error processing notification");
         }
     }
 
-    private async Task SimulateTemplateRendering(string notificationId, string? subject, string? body, string? channelType)
+    internal static bool TryParseNotification(string json, out NotificationMessage? notification)
     {
-        // CPU-bound work: simulate template rendering with string replacements
-        _logger.LogInformation($"🔧 Rendering template for notification {notificationId}");
+        notification = null;
 
-        // Simulate heavy processing
-        var renderedSubject = subject;
-        var renderedBody = body;
-
-        for (int i = 0; i < 1000; i++)
+        if (string.IsNullOrWhiteSpace(json))
         {
-            renderedSubject = renderedSubject?.Replace("{{index}}", i.ToString()) ?? "";
-            renderedBody = renderedBody?.Replace("{{data}}", $"iteration-{i}") ?? "";
+            return false;
         }
 
-        _logger.LogInformation($"✅ Template rendered. Subject: {renderedSubject?.Substring(0, Math.Min(50, renderedSubject?.Length ?? 0))}...");
+        NotificationMessage? parsed;
 
-        // Simulate async I/O (e.g., sending to mail provider)
-        await Task.Delay(200);
+        try
+        {
+            parsed = JsonSerializer.Deserialize<NotificationMessage>(json, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+
+        if (parsed is null ||
+            string.IsNullOrWhiteSpace(parsed.NotificationId) ||
+            string.IsNullOrWhiteSpace(parsed.UserId) ||
+            string.IsNullOrWhiteSpace(parsed.Channel))
+        {
+            return false;
+        }
+
+        notification = parsed;
+        return true;
     }
 
-    private async Task PublishDeliveryLog(string notificationId, string? subject, string? body, string? channelType)
+    private (string subject, string body) RenderTemplate(NotificationMessage notification)
+    {
+        _logger.LogInformation("Rendering template for notification {NotificationId}", notification.NotificationId);
+
+        var renderedSubject = notification.Subject;
+        var renderedBody = notification.Body;
+
+        for (var index = 0; index < 1000; index++)
+        {
+            renderedSubject = renderedSubject.Replace("{{index}}", index.ToString());
+            renderedBody = renderedBody.Replace("{{data}}", $"iteration-{index}");
+        }
+
+        return (renderedSubject, renderedBody);
+    }
+
+    private async Task PublishDeliveryLogAsync(NotificationMessage notification, string renderedSubject, string renderedBody)
     {
         try
         {
-            var deliveryLog = new
-            {
-                notificationId,
-                subject,
-                body,
-                channelType,
-                status = "DELIVERED",
-                timestamp = DateTime.UtcNow,
-                processedBy = "dotnet-worker"
-            };
+            var deliveryLog = new DeliveryLog(
+                notification.NotificationId,
+                renderedSubject,
+                renderedBody,
+                notification.Channel,
+                "DELIVERED",
+                DateTime.UtcNow,
+                "dotnet-worker"
+            );
 
-            var json = System.Text.Json.JsonSerializer.Serialize(deliveryLog);
-            await _subscriber!.PublishAsync("channel:delivery:log", json);
+            var json = JsonSerializer.Serialize(deliveryLog, JsonOptions);
+            await _subscriber.PublishAsync(RedisChannel.Literal(DeliveryLogChannel), json);
 
-            _logger.LogInformation($"📤 Delivery log published for notification {notificationId}");
+            _logger.LogInformation("Delivery log published for notification {NotificationId}", notification.NotificationId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Error publishing delivery log");
+            _logger.LogError(ex, "Error publishing delivery log");
         }
     }
 }

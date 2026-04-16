@@ -13,22 +13,22 @@ public class Worker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("🚀 .NET Worker Service starting");
+        _logger.LogInformation(".NET worker service starting");
 
         try
         {
-            await _redisSubscriber.StartSubscribing(stoppingToken);
+            await _redisSubscriber.StartSubscribingAsync(stoppingToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Worker service error");
+            _logger.LogError(ex, "Worker service error");
             throw;
         }
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("⛔ .NET Worker Service stopping");
+        _logger.LogInformation(".NET worker service stopping");
         await base.StopAsync(cancellationToken);
     }
 }

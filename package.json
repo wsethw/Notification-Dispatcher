@@ -1,4 +1,12 @@
 {
+  "name": "notification-dispatcher",
+  "private": true,
+  "scripts": {
+    "test:node": "npm test --prefix notification-service-nodejs",
+    "build:dotnet": "dotnet build .\\notification-worker-dotnet\\notification-worker-dotnet.csproj",
+    "compose:up": "docker compose up --build",
+    "compose:down": "docker compose down"
+  },
   "devDependencies": {
     "jest-mock-console": "^2.0.0"
   }
