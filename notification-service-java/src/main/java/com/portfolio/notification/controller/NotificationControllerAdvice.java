@@ -55,6 +55,7 @@ public class NotificationControllerAdvice {
         return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR", "Unexpected error processing notification");
     }
 
+    @SuppressWarnings("null")
     private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String code, String error) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("status", code);

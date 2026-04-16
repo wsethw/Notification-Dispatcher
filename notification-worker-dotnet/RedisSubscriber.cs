@@ -16,22 +16,24 @@ public class RedisSubscriber
     };
 
     private readonly ILogger<RedisSubscriber> _logger;
-    private readonly RedisOptions _options;
+    private readonly RedisOptions _redisOptions;
+    private readonly WorkerOptions _workerOptions;
     private IConnectionMultiplexer _redis = null!;
     private ISubscriber _subscriber = null!;
 
-    public RedisSubscriber(ILogger<RedisSubscriber> logger, IOptions<RedisOptions> options)
+    public RedisSubscriber(ILogger<RedisSubscriber> logger, IOptions<RedisOptions> redisOptions, IOptions<WorkerOptions> workerOptions)
     {
         _logger = logger;
-        _options = options.Value;
+        _redisOptions = redisOptions.Value;
+        _workerOptions = workerOptions.Value;
     }
 
     public async Task StartSubscribingAsync(CancellationToken cancellationToken)
     {
         try
         {
-            var redisHost = Environment.GetEnvironmentVariable("REDIS_HOST") ?? _options.Host;
-            var redisPort = Environment.GetEnvironmentVariable("REDIS_PORT") ?? _options.Port.ToString();
+            var redisHost = Environment.GetEnvironmentVariable("REDIS_HOST") ?? _redisOptions.Host;
+            var redisPort = Environment.GetEnvironmentVariable("REDIS_PORT") ?? _redisOptions.Port.ToString();
 
             var options = ConfigurationOptions.Parse($"{redisHost}:{redisPort}");
             options.AbortOnConnectFail = false;
@@ -156,7 +158,7 @@ public class RedisSubscriber
                 notification.Channel,
                 "DELIVERED",
                 DateTime.UtcNow,
-                "dotnet-worker"
+                _workerOptions.ProcessedBy
             );
 
             var json = JsonSerializer.Serialize(deliveryLog, JsonOptions);

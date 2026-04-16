@@ -1,21 +1,23 @@
+﻿version: '3.9'
+
 services:
   postgres:
     image: postgres:16-alpine
     container_name: notification-postgres
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-notification_db}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
       POSTGRES_INITDB_ARGS: "-c shared_preload_libraries=pg_stat_statements"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "5432:5432"
     networks:
       - notification-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-notification_db}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d notification_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -28,11 +30,11 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - "${REDIS_PORT:-6379}:${REDIS_PORT:-6379}"
+      - "6379:6379"
     networks:
       - notification-net
     healthcheck:
-      test: ["CMD", "redis-cli", "-p", "${REDIS_PORT:-6379}", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -44,17 +46,14 @@ services:
       dockerfile: Dockerfile
     container_name: notification-java
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-notification_db}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notification_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: ${REDIS_PORT:-6379}
-      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-validate}
-      NOTIFICATION_RATE_LIMIT_MAX_REQUESTS: ${NOTIFICATION_RATE_LIMIT_MAX_REQUESTS:-10}
-      NOTIFICATION_RATE_LIMIT_WINDOW_SECONDS: ${NOTIFICATION_RATE_LIMIT_WINDOW_SECONDS:-60}
+      SPRING_REDIS_PORT: 6379
       JAVA_OPTS: "-Xmx512m -Xms256m"
     ports:
-      - "${JAVA_SERVICE_PORT:-8080}:8080"
+      - "8080:8080"
     networks:
       - notification-net
     depends_on:
@@ -76,11 +75,10 @@ services:
     container_name: notification-nodejs
     environment:
       REDIS_HOST: redis
-      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PORT: 6379
       NODE_ENV: production
-      PORT: 3000
     ports:
-      - "${NODE_SERVICE_PORT:-3000}:3000"
+      - "3000:3000"
     networks:
       - notification-net
     depends_on:
@@ -100,9 +98,8 @@ services:
     container_name: notification-dotnet
     environment:
       REDIS_HOST: redis
-      REDIS_PORT: ${REDIS_PORT:-6379}
-      DOTNET_ENVIRONMENT: ${DOTNET_ENVIRONMENT:-Production}
-      Worker__ProcessedBy: ${DOTNET_WORKER_NAME:-dotnet-worker}
+      REDIS_PORT: 6379
+      DOTNET_ENVIRONMENT: Production
     networks:
       - notification-net
     depends_on:

@@ -71,7 +71,7 @@ class SendNotificationUseCaseTest {
         );
 
         assertEquals("cached-1", response.get("notificationId"));
-        verify(repository, never()).save(any(NotificationAudit.class));
+        verify(repository, never()).save(any());
         verify(redisPublisher, never()).publishNotification(any(), anyMap());
     }
 
