@@ -1,43 +1,69 @@
-describe('Health Endpoint - Advanced', () => {
-  it('should return JSON response', () => {
-    const response = { status: 'UP' };
-    
-    expect(response).toBeInstanceOf(Object);
-    expect(typeof response).toBe('object');
+const http = require('http');
+const { createServer, shutdown } = require('../../src/index');
+
+function request(server, path) {
+  const address = server.address();
+
+  return new Promise((resolve, reject) => {
+    const req = http.get(
+      {
+        hostname: '127.0.0.1',
+        port: address.port,
+        path
+      },
+      (response) => {
+        let body = '';
+        response.on('data', (chunk) => {
+          body += chunk;
+        });
+        response.on('end', () => {
+          resolve({
+            statusCode: response.statusCode,
+            headers: response.headers,
+            body
+          });
+        });
+      }
+    );
+
+    req.on('error', reject);
+  });
+}
+
+describe('Health endpoint', () => {
+  let server;
+  let subscriber;
+
+  beforeEach(async () => {
+    const created = createServer();
+    server = created.server;
+    subscriber = created.subscriber;
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   });
 
-  it('should have status property', () => {
-    const response = { status: 'UP' };
-    
-    expect(response).toHaveProperty('status');
+  afterEach(async () => {
+    await shutdown(server, subscriber);
   });
 
-  it('should return string UP', () => {
-    const response = { status: 'UP' };
-    
-    expect(typeof response.status).toBe('string');
-    expect(response.status).toBe('UP');
+  it('returns JSON content with the service name', async () => {
+    const response = await request(server, '/api/v1/health');
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toContain('application/json');
+    expect(JSON.parse(response.body)).toEqual({
+      status: 'UP',
+      service: 'notification-service-nodejs'
+    });
   });
 
-  it('should not have null or undefined values', () => {
-    const response = { status: 'UP' };
-    
-    expect(response.status).not.toBeNull();
-    expect(response.status).not.toBeUndefined();
-  });
+  it('keeps returning a healthy payload across repeated requests', async () => {
+    const [firstResponse, secondResponse] = await Promise.all([
+      request(server, '/api/v1/health'),
+      request(server, '/api/v1/health')
+    ]);
 
-  it('should match expected structure', () => {
-    const response = { status: 'UP' };
-    
-    expect(Object.keys(response)).toContain('status');
-    expect(Object.keys(response).length).toBeGreaterThan(0);
-  });
-
-  it('should handle status comparison case-sensitive', () => {
-    const response = { status: 'UP' };
-    
-    expect(response.status).toBe('UP');
-    expect(response.status).not.toBe('up');
-    expect(response.status).not.toBe('Up');
+    expect(firstResponse.statusCode).toBe(200);
+    expect(secondResponse.statusCode).toBe(200);
+    expect(JSON.parse(firstResponse.body)).toEqual(JSON.parse(secondResponse.body));
   });
 });

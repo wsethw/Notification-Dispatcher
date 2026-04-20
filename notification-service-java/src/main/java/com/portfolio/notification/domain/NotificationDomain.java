@@ -3,7 +3,7 @@ package com.portfolio.notification.domain;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Data
 @Builder
@@ -16,6 +16,6 @@ public class NotificationDomain {
     private String subject;
     private String body;
     private String idempotencyKey;
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
     private String status; // PENDING, SENT, FAILED
 }

@@ -34,24 +34,25 @@ public class NotificationController {
             @RequestHeader(value = "X-Client-Id") String clientId,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
 
-        if (clientId == null || clientId.isBlank()) {
+        String normalizedClientId = clientId == null ? "" : clientId.trim();
+        if (normalizedClientId.isBlank()) {
             throw new IllegalArgumentException("X-Client-Id header is required");
         }
 
-        if (idempotencyKey == null || idempotencyKey.isBlank()) {
-            idempotencyKey = UUID.randomUUID().toString();
-        }
+        String normalizedIdempotencyKey = (idempotencyKey == null || idempotencyKey.isBlank())
+                ? UUID.randomUUID().toString()
+                : idempotencyKey.trim();
 
         logger.info("Processing notification for clientId: {}, userId: {}, channel: {}",
-                clientId, request.userId(), request.channel());
+                normalizedClientId, request.userId(), request.channel());
 
         Map<String, Object> response = sendNotificationUseCase.execute(
-                clientId.trim(),
+                normalizedClientId,
                 request.userId().trim(),
                 request.channel().trim(),
                 request.subject().trim(),
                 request.body().trim(),
-                idempotencyKey
+                normalizedIdempotencyKey
         );
 
         logger.info("Notification accepted successfully: {}", response.get("notificationId"));

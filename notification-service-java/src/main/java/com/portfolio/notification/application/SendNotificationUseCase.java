@@ -16,7 +16,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -39,25 +40,18 @@ public class SendNotificationUseCase {
             String subject,
             String body,
             String idempotencyKey) {
-        NotificationChannel notificationChannel = NotificationChannel.from(channel);
+        Map<String, Object> cachedResponse = getCachedResponse(clientId, idempotencyKey);
+        if (cachedResponse != null) {
+            return cachedResponse;
+        }
 
+        NotificationChannel notificationChannel = NotificationChannel.from(channel);
         if (!rateLimiter.allowRequest(clientId)) {
             throw new RateLimitExceededException("Rate limit exceeded for clientId: " + clientId);
         }
 
-        if (idempotencyManager.isProcessed(clientId, idempotencyKey)) {
-            String cachedResult = idempotencyManager.getProcessedResult(clientId, idempotencyKey);
-            if (cachedResult != null) {
-                try {
-                    return objectMapper.readValue(cachedResult, Map.class);
-                } catch (Exception e) {
-                    throw new IdempotencyException("Failed to parse cached result", e);
-                }
-            }
-        }
-
         String notificationId = UUID.randomUUID().toString();
-        LocalDateTime now = LocalDateTime.now();
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
         NotificationAudit audit = NotificationAudit.builder()
                 .notificationId(notificationId)
@@ -95,7 +89,7 @@ public class SendNotificationUseCase {
             redisPublisher.publishNotification(notificationChannel.value(), domainMap);
         } catch (Exception e) {
             audit.setStatus("FAILED");
-            audit.setUpdatedAt(LocalDateTime.now());
+            audit.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
             repository.save(audit);
             throw new NotificationDispatchException("Failed to publish notification to Redis", e);
         }
@@ -115,5 +109,22 @@ public class SendNotificationUseCase {
         }
 
         return response;
+    }
+
+    private Map<String, Object> getCachedResponse(String clientId, String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return null;
+        }
+
+        String cachedResult = idempotencyManager.getProcessedResult(clientId, idempotencyKey);
+        if (cachedResult == null) {
+            return null;
+        }
+
+        try {
+            return objectMapper.readValue(cachedResult, Map.class);
+        } catch (Exception e) {
+            throw new IdempotencyException("Failed to parse cached result", e);
+        }
     }
 }

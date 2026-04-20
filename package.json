@@ -2,10 +2,15 @@
   "name": "notification-dispatcher",
   "private": true,
   "scripts": {
+    "test:java:ps": "powershell -ExecutionPolicy Bypass -File .\\scripts\\test-java.ps1",
     "test:node": "npm test --prefix notification-service-nodejs",
+    "test:node:coverage": "npm run test:coverage --prefix notification-service-nodejs",
     "build:dotnet": "dotnet build .\\notification-worker-dotnet\\notification-worker-dotnet.csproj",
+    "compose:build": "docker compose build",
     "compose:up": "docker compose up --build",
-    "compose:down": "docker compose down"
+    "compose:down": "docker compose down",
+    "smoke:ps": "powershell -ExecutionPolicy Bypass -File .\\scripts\\test-api.ps1",
+    "smoke:sh": "bash ./scripts/test-api.sh"
   },
   "devDependencies": {
     "jest-mock-console": "^2.0.0"

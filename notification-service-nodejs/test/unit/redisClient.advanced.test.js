@@ -1,68 +1,57 @@
-describe('Redis Client - Message Handling', () => {
-  it('should parse valid JSON notification message', () => {
-    const message = JSON.stringify({
-      notificationId: 'notif-123',
-      userId: 'user-456',
-      subject: 'Welcome',
-      body: 'Welcome to our service',
-      channel: 'email'
-    });
+describe('redis client configuration', () => {
+  const originalEnv = process.env;
 
-    // Valida que é JSON válido
-    const parsed = JSON.parse(message);
-    expect(parsed.userId).toBe('user-456');
-    expect(parsed.notificationId).toBe('notif-123');
-    expect(parsed.subject).toBe('Welcome');
+  beforeEach(() => {
+    jest.resetModules();
+    process.env = { ...originalEnv };
   });
 
-  it('should handle notification with all required fields', () => {
-    const notification = {
-      notificationId: 'notif-456',
-      userId: 'user-789',
-      subject: 'Test Subject',
-      body: 'Test Body',
-      channel: 'push'
-    };
-
-    expect(notification).toHaveProperty('notificationId');
-    expect(notification).toHaveProperty('userId');
-    expect(notification).toHaveProperty('subject');
-    expect(notification).toHaveProperty('body');
-    expect(notification).toHaveProperty('channel');
+  afterAll(() => {
+    process.env = originalEnv;
   });
 
-  it('should have valid channel types', () => {
-    const validChannels = ['email', 'push', 'sms', 'system'];
-    const notification = { channel: 'push' };
+  it('uses localhost-friendly defaults outside production', () => {
+    process.env.NODE_ENV = 'development';
+    delete process.env.REDIS_HOST;
+    delete process.env.REDIS_PORT;
 
-    expect(validChannels).toContain(notification.channel);
+    const { buildRedisOptions } = require('../../src/redisClient');
+    const options = buildRedisOptions();
+
+    expect(options.host).toBe('127.0.0.1');
+    expect(options.port).toBe(6379);
+    expect(options.lazyConnect).toBe(false);
   });
 
-  it('should have userId as string', () => {
-    const notification = { userId: 'user-123' };
+  it('keeps lazy connections enabled in tests', () => {
+    process.env.NODE_ENV = 'test';
+    process.env.REDIS_HOST = 'redis-test';
+    process.env.REDIS_PORT = '6380';
 
-    expect(typeof notification.userId).toBe('string');
-    expect(notification.userId.length).toBeGreaterThan(0);
+    const { buildRedisOptions } = require('../../src/redisClient');
+    const options = buildRedisOptions();
+
+    expect(options.host).toBe('redis-test');
+    expect(options.port).toBe(6380);
+    expect(options.lazyConnect).toBe(true);
   });
 
-  it('should have non-empty subject', () => {
-    const notification = { subject: 'Test Subject' };
+  it('falls back to the default port when REDIS_PORT is invalid', () => {
+    process.env.NODE_ENV = 'development';
+    process.env.REDIS_PORT = 'not-a-number';
 
-    expect(notification.subject).toBeDefined();
-    expect(notification.subject.length).toBeGreaterThan(0);
+    const { buildRedisOptions } = require('../../src/redisClient');
+    const options = buildRedisOptions();
+
+    expect(options.port).toBe(6379);
   });
 
-  it('should have non-empty body', () => {
-    const notification = { body: 'Test notification body' };
+  it('caps retry delays to avoid noisy reconnect storms', () => {
+    const { buildRedisOptions } = require('../../src/redisClient');
+    const options = buildRedisOptions();
 
-    expect(notification.body).toBeDefined();
-    expect(notification.body.length).toBeGreaterThan(0);
-  });
-
-  it('should have valid notificationId format', () => {
-    const notification = { notificationId: 'notif-abc123' };
-
-    expect(notification.notificationId).toBeDefined();
-    expect(notification.notificationId).toMatch(/^notif-/);
+    expect(options.retryStrategy(1)).toBe(50);
+    expect(options.retryStrategy(10)).toBe(500);
+    expect(options.retryStrategy(100)).toBe(2000);
   });
 });

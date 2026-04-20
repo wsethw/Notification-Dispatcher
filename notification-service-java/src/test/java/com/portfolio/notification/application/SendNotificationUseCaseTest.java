@@ -1,6 +1,7 @@
 package com.portfolio.notification.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.portfolio.notification.application.exception.NotificationDispatchException;
 import com.portfolio.notification.application.exception.RateLimitExceededException;
 import com.portfolio.notification.domain.NotificationAudit;
 import com.portfolio.notification.infrastructure.PostgresNotificationRepository;
@@ -14,6 +15,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,6 +25,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -45,19 +49,20 @@ class SendNotificationUseCaseTest {
 
     @BeforeEach
     void setUp() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.findAndRegisterModules();
+
         useCase = new SendNotificationUseCase(
                 rateLimiter,
                 idempotencyManager,
                 redisPublisher,
                 repository,
-                new ObjectMapper()
+                objectMapper
         );
     }
 
     @Test
     void shouldReturnCachedResultWhenIdempotencyKeyWasAlreadyProcessed() {
-        when(rateLimiter.allowRequest("client-1")).thenReturn(true);
-        when(idempotencyManager.isProcessed("client-1", "idem-1")).thenReturn(true);
         when(idempotencyManager.getProcessedResult("client-1", "idem-1"))
                 .thenReturn("{\"notificationId\":\"cached-1\",\"status\":\"PENDING\"}");
 
@@ -71,6 +76,7 @@ class SendNotificationUseCaseTest {
         );
 
         assertEquals("cached-1", response.get("notificationId"));
+        verify(rateLimiter, never()).allowRequest("client-1");
         verify(repository, never()).save(any());
         verify(redisPublisher, never()).publishNotification(any(), anyMap());
     }
@@ -87,8 +93,7 @@ class SendNotificationUseCaseTest {
 
     @Test
     void shouldRejectUnknownChannels() {
-        when(rateLimiter.allowRequest("client-1")).thenReturn(true);
-        when(idempotencyManager.isProcessed("client-1", "idem-1")).thenReturn(false);
+        when(idempotencyManager.getProcessedResult("client-1", "idem-1")).thenReturn(null);
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
@@ -101,7 +106,7 @@ class SendNotificationUseCaseTest {
     @Test
     void shouldPersistPublishAndCacheAValidNotification() {
         when(rateLimiter.allowRequest("client-1")).thenReturn(true);
-        when(idempotencyManager.isProcessed("client-1", "idem-1")).thenReturn(false);
+        when(idempotencyManager.getProcessedResult("client-1", "idem-1")).thenReturn(null);
 
         Map<String, Object> response = useCase.execute(
                 "client-1",
@@ -122,5 +127,28 @@ class SendNotificationUseCaseTest {
         assertEquals("push", persistedAudit.getChannel());
         assertTrue(response.containsKey("notificationId"));
         assertEquals("PENDING", response.get("status"));
+    }
+
+    @Test
+    void shouldMarkAuditAsFailedWhenRedisPublishingFails() {
+        when(rateLimiter.allowRequest("client-1")).thenReturn(true);
+        when(idempotencyManager.getProcessedResult("client-1", "idem-1")).thenReturn(null);
+        doThrow(new RuntimeException("Redis unavailable"))
+                .when(redisPublisher)
+                .publishNotification(eq("push"), anyMap());
+
+        NotificationDispatchException exception = assertThrows(
+                NotificationDispatchException.class,
+                () -> useCase.execute("client-1", "user-1", "push", "Subject", "Body", "idem-1")
+        );
+
+        ArgumentCaptor<NotificationAudit> auditCaptor = ArgumentCaptor.forClass(NotificationAudit.class);
+        verify(repository, times(2)).save(auditCaptor.capture());
+        List<NotificationAudit> savedAudits = auditCaptor.getAllValues();
+
+        assertEquals("Failed to publish notification to Redis", exception.getMessage());
+        assertEquals(2, savedAudits.size());
+        assertEquals(savedAudits.get(0).getNotificationId(), savedAudits.get(1).getNotificationId());
+        assertEquals("FAILED", savedAudits.get(1).getStatus());
     }
 }

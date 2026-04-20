@@ -3,12 +3,7 @@ module.exports = {
   clearMocks: true,
   detectOpenHandles: true,
   setupFilesAfterEnv: ['<rootDir>/test/setup.js'],
-  testMatch: [
-    '<rootDir>/test/unit/index.test.js',
-    '<rootDir>/test/unit/redisClient.test.js',
-    '<rootDir>/test/unit/socketHandler.test.js',
-    '<rootDir>/test/integration/push-flow.integration.test.js'
-  ],
+  testMatch: ['<rootDir>/test/**/*.test.js'],
   collectCoverageFrom: [
     'src/**/*.js',
     '!src/__mocks__/**'

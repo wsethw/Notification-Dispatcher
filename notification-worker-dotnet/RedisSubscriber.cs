@@ -56,15 +56,24 @@ public class RedisSubscriber
             {
                 _logger.LogInformation("Cancellation requested, unsubscribing from Redis channels");
             }
-
-            await _subscriber.UnsubscribeAllAsync();
-            await _redis.CloseAsync();
-            _redis.Dispose();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in Redis subscription");
             throw;
+        }
+        finally
+        {
+            if (_subscriber is not null)
+            {
+                await _subscriber.UnsubscribeAllAsync();
+            }
+
+            if (_redis is not null)
+            {
+                await _redis.CloseAsync();
+                _redis.Dispose();
+            }
         }
     }
 
@@ -77,7 +86,7 @@ public class RedisSubscriber
     {
         try
         {
-            if (!TryParseNotification(message.ToString(), out var notification))
+            if (!TryParseNotification(message.ToString(), out var notification) || notification is null)
             {
                 _logger.LogWarning("Ignoring invalid notification payload: {Payload}", message.ToString());
                 return;
@@ -122,12 +131,21 @@ public class RedisSubscriber
         if (parsed is null ||
             string.IsNullOrWhiteSpace(parsed.NotificationId) ||
             string.IsNullOrWhiteSpace(parsed.UserId) ||
+            string.IsNullOrWhiteSpace(parsed.Subject) ||
+            string.IsNullOrWhiteSpace(parsed.Body) ||
             string.IsNullOrWhiteSpace(parsed.Channel))
         {
             return false;
         }
 
-        notification = parsed;
+        notification = parsed with
+        {
+            NotificationId = parsed.NotificationId.Trim(),
+            UserId = parsed.UserId.Trim(),
+            Subject = parsed.Subject.Trim(),
+            Body = parsed.Body.Trim(),
+            Channel = parsed.Channel.Trim().ToLowerInvariant()
+        };
         return true;
     }
 

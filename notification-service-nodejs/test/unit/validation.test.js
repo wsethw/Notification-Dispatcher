@@ -1,53 +1,68 @@
-describe('Data Validation', () => {
-  it('should validate userId is not empty', () => {
-    const userId = 'user-123';
-    expect(userId.length).toBeGreaterThan(0);
+const {
+  isValidUserId,
+  normalizeNotification
+} = require('../../src/socketHandler');
+
+describe('notification validation', () => {
+  it('accepts valid user ids and trims surrounding whitespace', () => {
+    expect(isValidUserId('user-123')).toBe(true);
+    expect(
+      normalizeNotification({
+        userId: ' user-123 '
+      }).userId
+    ).toBe('user-123');
   });
 
-  it('should validate notificationId starts with notif-', () => {
-    const id = 'notif-abc123';
-    expect(id).toMatch(/^notif-/);
+  it('rejects missing or blank user ids', () => {
+    expect(isValidUserId('')).toBe(false);
+    expect(isValidUserId('   ')).toBe(false);
+    expect(isValidUserId(null)).toBe(false);
+    expect(() => normalizeNotification({ userId: '   ' })).toThrow(
+      'Notification payload must include a valid userId'
+    );
   });
 
-  it('should validate channel is valid', () => {
-    const validChannels = ['email', 'push', 'sms', 'system'];
-    const channel = 'push';
-    expect(validChannels).toContain(channel);
-  });
+  it('applies safe defaults when optional fields are omitted', () => {
+    const notification = normalizeNotification({
+      userId: 'user-1'
+    });
 
-  it('should validate subject is not empty', () => {
-    const subject = 'Welcome';
-    expect(subject.length).toBeGreaterThan(0);
-  });
-
-  it('should validate body is not empty', () => {
-    const body = 'Welcome to service';
-    expect(body.length).toBeGreaterThan(0);
-  });
-
-  it('should validate notification has all fields', () => {
-    const notif = {
-      notificationId: 'notif-1',
+    expect(notification).toMatchObject({
+      notificationId: null,
       userId: 'user-1',
-      subject: 'Test',
-      body: 'Body',
-      channel: 'email'
-    };
-    expect(notif.notificationId).toBeDefined();
-    expect(notif.userId).toBeDefined();
-    expect(notif.subject).toBeDefined();
-    expect(notif.body).toBeDefined();
-    expect(notif.channel).toBeDefined();
+      subject: 'Notification',
+      body: '',
+      channel: 'push'
+    });
+    expect(notification.timestamp).toEqual(expect.any(String));
   });
 
-  it('should reject empty userId', () => {
-    const userId = '';
-    expect(userId.length).toBe(0);
+  it('parses JSON payloads and preserves explicit values', () => {
+    const notification = normalizeNotification(
+      JSON.stringify({
+        notificationId: 'notif-abc123',
+        userId: 'user-7',
+        subject: 'Welcome',
+        body: 'Portfolio-ready message',
+        channel: 'push',
+        timestamp: '2026-04-20T10:00:00.000Z'
+      })
+    );
+
+    expect(notification).toEqual({
+      notificationId: 'notif-abc123',
+      userId: 'user-7',
+      subject: 'Welcome',
+      body: 'Portfolio-ready message',
+      channel: 'push',
+      timestamp: '2026-04-20T10:00:00.000Z'
+    });
   });
 
-  it('should reject invalid channel', () => {
-    const validChannels = ['email', 'push', 'sms', 'system'];
-    const channel = 'invalid';
-    expect(validChannels).not.toContain(channel);
+  it('rejects invalid payload types before emitting notifications', () => {
+    expect(() => normalizeNotification(null)).toThrow(
+      'Notification payload must be an object'
+    );
+    expect(() => normalizeNotification('not-json')).toThrow();
   });
 });
