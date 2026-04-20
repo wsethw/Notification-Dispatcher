@@ -1,196 +1,194 @@
+```markdown
 # Notification Dispatcher
 
-Portfolio-ready polyglot microservices project focused on reliability, idempotency, async delivery, and real-time notifications.
+A high-performance, polyglot microservices system designed for scalable and resilient notification delivery.  
+Built with Java, Node.js, and .NET to demonstrate real-world backend engineering practices.
 
-## Highlights
+---
 
-- Java 21 + Spring Boot API for request validation, idempotency, rate limiting, and audit persistence.
-- Node.js + Socket.IO service for real-time push delivery and browser subscriptions.
-- .NET 8 worker for email and SMS template processing on separate channels.
-- PostgreSQL for audit history and Redis for rate limiting, idempotency, and pub/sub dispatching.
+## System Architecture
 
-## Architecture
+Decoupled, event-driven microservices architecture using Redis Pub/Sub.
 
-```text
-Client -> Java API (8080) -> PostgreSQL
-                     |
-                     +-> Redis pub/sub -> Node.js push service (3000) -> Browser
-                     |
-                     +-> Redis pub/sub -> .NET worker -> delivery log channel
+```mermaid
+graph LR
+    Client[Client] -->|HTTP POST| JavaAPI[Notification API<br/>Java + Spring Boot]
+    JavaAPI -->|persist| PostgreSQL[(PostgreSQL)]
+    JavaAPI -->|publish event| Redis[(Redis Pub/Sub)]
+    Redis -->|channel: push| NodeJS[Push Service<br/>Node.js + Socket.IO]
+    Redis -->|channel: email/sms| DotNet[Worker Service<br/>.NET 8]
+    NodeJS -->|WebSocket| Browser[Browser Client]
+    DotNet -->|simulated| EmailSMS[Email/SMS Gateway]
 ```
+
+---
+
+## Services Breakdown
+
+| Service              | Technology              | Responsibility                                      |
+|----------------------|-------------------------|-----------------------------------------------------|
+| Notification API     | Java + Spring Boot 3    | Validation, idempotency, rate limiting, persistence |
+| Push Service         | Node.js + Socket.IO     | Real-time WebSocket notifications                   |
+| Worker Service       | .NET 8 Worker           | Background processing (email/SMS simulation)        |
+| Redis                | —                       | Message broker (Pub/Sub)                            |
+| PostgreSQL           | —                       | Persistent audit storage                            |
+
+---
 
 ## Tech Stack
 
-| Service | Stack | Responsibility |
-| --- | --- | --- |
-| API | Java 21, Spring Boot 3.3, JPA, Redis | Validation, idempotency, rate limiting, audit trail |
-| Push | Node.js, Express, Socket.IO, ioredis | WebSocket subscriptions and push fan-out |
-| Worker | .NET 8 Worker Service, StackExchange.Redis | Email/SMS template rendering and delivery logs |
-| Infra | PostgreSQL 16, Redis 7, Docker Compose | Persistence, messaging, local orchestration |
+- Java 21 + Spring Boot 3
+- Node.js 20 + Express + Socket.IO
+- .NET 8 Worker Service
+- Redis (Pub/Sub)
+- PostgreSQL 16
+- Docker + Docker Compose
 
-## Repository Layout
+---
 
-```text
-notification-service-java/
-notification-service-nodejs/
-notification-worker-dotnet/
-scripts/
-docker-compose.yml
-init-db.sql
+## Core Features
+
+- Polyglot microservices architecture
+- Event-driven communication with Redis Pub/Sub
+- Idempotency control (Redis)
+- Rate limiting per client
+- Real-time delivery via WebSockets
+- Background job processing
+- Full Docker containerization with health checks
+
+---
+
+## Project Structure
+
+```bash
+.
+├── notification-service-java/
+├── notification-service-nodejs/
+├── notification-worker-dotnet/
+├── docker-compose.yml
+├── .env.example
+├── scripts/
+│   └── test-api.sh
 ```
 
-## Quick Start
+---
 
-### Prerequisites
+## Getting Started
 
-- Docker Desktop or Docker Engine with Compose support
-- Node.js 20+ for local Node tests
-- .NET 8 SDK for local worker build
-- Java 21 if you want to run the API outside Docker
+### 1. Clone
+```bash
+git clone https://github.com/wsethw/Notification-Dispatcher.git
+cd Notification-Dispatcher
+```
 
-### Environment
+### 2. Environment
+```bash
+cp .env.example .env
+```
 
-Copy `.env.example` to `.env` and adjust values if needed.
+### 3. Run
+```bash
+docker compose up --build
+```
 
-Key defaults:
+### 4. Access
 
-- `POSTGRES_HOST=localhost`
-- `POSTGRES_PORT=5432`
-- `REDIS_HOST=localhost`
-- `REDIS_PORT=6379`
-- `JAVA_SERVICE_PORT=8080`
-- `NODE_SERVICE_PORT=3000`
+| Service                  | URL                          |
+|--------------------------|------------------------------|
+| Notification API         | http://localhost:8080        |
+| WebSocket Push Service   | http://localhost:3000        |
+| PostgreSQL               | localhost:5432               |
+| Redis                    | localhost:6379               |
 
-### Run the full stack
+---
+
+## API Example
+
+**POST** `/api/v1/notifications`
+
+```json
+{
+  "clientId": "user-123",
+  "channel": "push",
+  "message": "Hello world",
+  "idempotencyKey": "unique-key-123"
+}
+```
+
+Response (200):
+```json
+{
+  "notificationId": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "PENDING"
+}
+```
+
+---
+
+## Event Flow
+
+1. Client → Java API
+2. Validation + rate limit + idempotency check
+3. Persist in PostgreSQL
+4. Publish event to Redis
+5. Worker (Node.js or .NET) consumes and delivers
+
+---
+
+## Engineering Highlights
+
+- **Idempotency** – prevents duplicate processing using Redis
+- **Rate Limiting** – configurable per clientId
+- **Event-Driven** – loose coupling and high resilience
+- **Polyglot** – best tool for each job
+
+---
+
+## Testing
+
+```bash
+# Smoke test (end-to-end)
+./scripts/test-api.sh          # Linux / macOS
+npm run smoke:ps               # Windows (PowerShell)
+```
+
+Unit tests are also available in each service.
+
+---
+
+## Docker Execution
 
 ```bash
 docker compose up --build
 ```
 
-Services:
+Includes health checks, volumes, and proper service ordering.
 
-- Java API: `http://localhost:8080/api/v1/notifications/health`
-- Node.js health: `http://localhost:3000/api/v1/health`
-- Browser client: `http://localhost:3000`
-- PostgreSQL: `localhost:5432`
-- Redis: `localhost:6379`
+---
 
-### Stop the stack
+## Current Limitations
 
-```bash
-docker compose down
-```
+- No authentication (open for demo)
+- Email/SMS delivery is simulated
+- No persistent delivery logs
+- No CI/CD or observability
 
-## Validation Commands
+---
 
-From the repository root:
+## Future Enhancements
 
-```bash
-npm run test:java:ps
-npm run test:node
-npm run test:node:coverage
-dotnet build .\notification-worker-dotnet\notification-worker-dotnet.csproj
-```
+- JWT/OAuth2 authentication
+- Real email/SMS providers (Twilio, SendGrid)
+- Observability (OpenTelemetry + Grafana)
+- CI/CD pipeline
+- Dead Letter Queue
 
-Smoke test after the stack is up:
+---
 
-```powershell
-npm run smoke:ps
-```
+## License
 
-```bash
-npm run smoke:sh
-```
+MIT License
 
-The smoke tests validate:
+---
 
-- Java API health
-- Node.js service health
-- push notification acceptance
-- email notification acceptance
-- sms notification acceptance
-- idempotent replay returning the same `notificationId`
-- rate limiting returning at least one `HTTP 429`
-
-## Local Development
-
-### Java API
-
-Run with Maven:
-
-```bash
-mvn test
-mvn spring-boot:run
-```
-
-Windows fallback without local Maven installation:
-
-```powershell
-npm run test:java:ps
-```
-
-Notes:
-
-- The API now defaults to `localhost` for PostgreSQL and Redis when run outside Docker.
-- Idempotent replays are resolved before rate limiting, so safe retries do not consume quota.
-- Audit timestamps use offset-aware types aligned with PostgreSQL `TIMESTAMP WITH TIME ZONE`.
-
-### Node.js Push Service
-
-```bash
-cd notification-service-nodejs
-npm install
-npm test
-npm run dev
-```
-
-Notes:
-
-- Local development defaults to Redis on `127.0.0.1`.
-- The Jest suite now executes every unit and integration test in `test/**/*.test.js`.
-
-### .NET Worker
-
-```bash
-dotnet build .\notification-worker-dotnet\notification-worker-dotnet.csproj
-dotnet run --project .\notification-worker-dotnet\notification-worker-dotnet.csproj
-```
-
-Notes:
-
-- Offline `NuGetAudit` noise is disabled for cleaner builds in restricted environments.
-- Invalid Redis payloads are rejected before template processing to avoid avoidable log noise.
-
-## Sample API Request
-
-```bash
-curl -X POST http://localhost:8080/api/v1/notifications/send \
-  -H "Content-Type: application/json" \
-  -H "X-Client-Id: portfolio-client-001" \
-  -H "Idempotency-Key: request-123" \
-  -d '{
-    "userId": "user-demo",
-    "channel": "push",
-    "subject": "Welcome",
-    "body": "Your notification pipeline is live"
-  }'
-```
-
-Expected response:
-
-```json
-{
-  "notificationId": "generated-id",
-  "clientId": "portfolio-client-001",
-  "channel": "push",
-  "status": "PENDING",
-  "createdAt": "2026-04-20T16:00:00Z"
-}
-```
-
-## What This Project Demonstrates
-
-- Stable cross-service contracts using Redis channels
-- Clean separation between synchronous API work and async processing
-- Practical QA coverage with Node unit/integration tests and Java controller/use-case tests
-- Operational concerns such as idempotency, rate limiting, health checks, and smoke scripts
+Built as a portfolio project to demonstrate distributed systems, async architecture, and production-grade patterns.
